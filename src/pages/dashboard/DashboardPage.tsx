@@ -1,6 +1,7 @@
 import { ArrowUpRight, ArrowDownLeft, TrendingUp, Clock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
+import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { transactions, stats, formatCurrency, formatDate } from "@/data/mockData";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,7 @@ import { cn } from "@/lib/utils";
 
 const DashboardPage = () => {
   const { user } = useAuth();
+  const { balance, isLoading: balanceLoading } = useWalletBalance();
   const recentTransactions = transactions.slice(0, 5);
 
   return (
@@ -30,7 +32,7 @@ const DashboardPage = () => {
               Total Balance
             </p>
             <h2 className="text-3xl lg:text-4xl font-display font-bold text-primary-foreground">
-              {formatCurrency(user?.walletBalance || 0)}
+              {balanceLoading ? "Loading..." : formatCurrency(balance)}
             </h2>
             <div className="flex items-center gap-2 text-primary-foreground/80">
               <TrendingUp className="w-4 h-4" />

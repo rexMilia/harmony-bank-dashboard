@@ -3,7 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useAuth } from "@/contexts/AuthContext";
+import { useWalletBalance } from "@/hooks/useWalletBalance";
+import { transactionService } from "@/services/transactions";
 import { formatCurrency } from "@/data/mockData";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, CheckCircle, AlertCircle, ArrowUpRight } from "lucide-react";
@@ -11,13 +12,19 @@ import { cn } from "@/lib/utils";
 
 type TransferState = "form" | "loading" | "success" | "error";
 
+interface TransferResult {
+  transaction_id: string;
+  status: string;
+}
+
 const TransferPage = () => {
-  const { user } = useAuth();
+  const { balance, isLoading: balanceLoading, refetch: refetchBalance } = useWalletBalance();
   const { toast } = useToast();
   const [state, setState] = useState<TransferState>("form");
   const [receiverId, setReceiverId] = useState("");
   const [amount, setAmount] = useState("");
   const [error, setError] = useState("");
+  const [transferResult, setTransferResult] = useState<TransferResult | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,26 +41,29 @@ const TransferPage = () => {
       return;
     }
 
-    if (numAmount > (user?.walletBalance || 0)) {
+    if (numAmount > balance) {
       setError("Insufficient balance");
       return;
     }
 
     setState("loading");
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    try {
+      const result = await transactionService.transfer({
+        receiver_id: receiverId,
+        amount: numAmount,
+      });
 
-    // 90% success rate for demo
-    if (Math.random() > 0.1) {
+      setTransferResult(result);
       setState("success");
       toast({
         title: "Transfer Successful!",
         description: `${formatCurrency(numAmount)} sent successfully.`,
       });
-    } else {
+      refetchBalance();
+    } catch (err) {
       setState("error");
-      setError("Transfer failed. Please try again.");
+      setError(err instanceof Error ? err.message : "Transfer failed. Please try again.");
     }
   };
 
@@ -62,9 +72,10 @@ const TransferPage = () => {
     setReceiverId("");
     setAmount("");
     setError("");
+    setTransferResult(null);
   };
 
-  if (state === "success") {
+  if (state === "success" && transferResult) {
     return (
       <div className="max-w-md mx-auto space-y-6 animate-fade-in">
         <Card className="shadow-card">
@@ -83,12 +94,20 @@ const TransferPage = () => {
             </div>
             <div className="bg-muted rounded-lg p-4 space-y-2 text-left">
               <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Transaction ID</span>
+                <span className="font-mono font-medium text-xs">{transferResult.transaction_id.slice(0, 8)}...</span>
+              </div>
+              <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">To</span>
                 <span className="font-mono font-medium">{receiverId}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Amount</span>
                 <span className="font-medium">{formatCurrency(parseFloat(amount))}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Status</span>
+                <span className="font-medium text-success">{transferResult.status}</span>
               </div>
             </div>
             <Button onClick={resetForm} className="w-full">
@@ -132,7 +151,6 @@ const TransferPage = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
       <div className="space-y-1">
         <h1 className="text-2xl lg:text-3xl font-display font-bold text-foreground">
           Transfer Money
@@ -141,7 +159,6 @@ const TransferPage = () => {
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* Transfer Form */}
         <Card className="shadow-card">
           <CardHeader>
             <CardTitle className="text-lg font-semibold flex items-center gap-2">
@@ -155,7 +172,7 @@ const TransferPage = () => {
                 <Label htmlFor="receiverId">Receiver Wallet ID</Label>
                 <Input
                   id="receiverId"
-                  placeholder="WAL-XXXX-XXXX-XXXX"
+                  placeholder="Enter receiver ID"
                   value={receiverId}
                   onChange={(e) => setReceiverId(e.target.value)}
                   className="h-12 font-mono"
@@ -203,7 +220,6 @@ const TransferPage = () => {
           </CardContent>
         </Card>
 
-        {/* Balance Summary */}
         <Card className="shadow-card">
           <CardHeader>
             <CardTitle className="text-lg font-semibold">Your Balance</CardTitle>
@@ -212,7 +228,7 @@ const TransferPage = () => {
             <div className="p-4 rounded-lg gradient-card">
               <p className="text-primary-foreground/80 text-sm mb-1">Available</p>
               <p className="text-2xl font-display font-bold text-primary-foreground">
-                {formatCurrency(user?.walletBalance || 0)}
+                {balanceLoading ? "Loading..." : formatCurrency(balance)}
               </p>
             </div>
 
@@ -223,8 +239,7 @@ const TransferPage = () => {
                   <span
                     className={cn(
                       "font-medium",
-                      parseFloat(amount) > (user?.walletBalance || 0) &&
-                        "text-destructive"
+                      parseFloat(amount) > balance && "text-destructive"
                     )}
                   >
                     {formatCurrency(parseFloat(amount))}
@@ -240,13 +255,10 @@ const TransferPage = () => {
                   <span
                     className={cn(
                       "font-semibold",
-                      parseFloat(amount) > (user?.walletBalance || 0) &&
-                        "text-destructive"
+                      parseFloat(amount) > balance && "text-destructive"
                     )}
                   >
-                    {formatCurrency(
-                      Math.max(0, (user?.walletBalance || 0) - parseFloat(amount || "0"))
-                    )}
+                    {formatCurrency(Math.max(0, balance - parseFloat(amount || "0")))}
                   </span>
                 </div>
               </div>
