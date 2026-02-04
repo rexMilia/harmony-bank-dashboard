@@ -2,6 +2,7 @@ import { Copy, Check, Eye, EyeOff, ArrowUpRight, ArrowDownLeft } from "lucide-re
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
+import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { formatCurrency } from "@/data/mockData";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -9,6 +10,7 @@ import { Link } from "react-router-dom";
 
 const WalletPage = () => {
   const { user } = useAuth();
+  const { balance, isLoading: balanceLoading } = useWalletBalance();
   const { toast } = useToast();
   const [showBalance, setShowBalance] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -60,7 +62,7 @@ const WalletPage = () => {
             </div>
 
             <h2 className="text-4xl lg:text-5xl font-display font-bold text-primary-foreground">
-              {showBalance ? formatCurrency(user?.walletBalance || 0) : "****"}
+              {balanceLoading ? "Loading..." : showBalance ? formatCurrency(balance) : "****"}
             </h2>
 
             {/* Wallet ID */}
